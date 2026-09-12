@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13', '3.14']
+        extras: [core, full]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - if: matrix.extras == 'core'
+        run: python -m pip install . pytest
+      - if: matrix.extras == 'full'
+        run: python -m pip install '.[data,portfolio,models,sentiment,plot,reports,dev]'
+      - run: python -m pytest
+      - if: matrix.extras == 'full'
+        run: |
+          ruff check .
+          ruff format --check .
+          python -m build
+          python scripts/check_examples.py
+        env:
+          MPLBACKEND: Agg
+
+  optional:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install '.[models,neural,prophet,apps,reports,sentiment,dev]'
+      - run: python -m pytest tests/test_research_models_reports.py tests/test_app.py
+        env:
+          MPLBACKEND: Agg
+          OMP_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
